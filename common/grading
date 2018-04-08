@@ -1,0 +1,1072 @@
+#!/usr/bin/env python3
+
+import datetime
+import json
+import os
+import platform
+import socket
+import subprocess
+import sys
+import textwrap
+
+# Constants
+inf = float("inf")
+
+# Course setup
+
+WEEK0 = (2018, 14)
+WEEKS = 6
+MAARI_A = 'albatrossi, broileri, dodo, drontti, emu, fasaani, flamingo, iibis, kakadu, kalkkuna, karakara, kasuaari, kiuru, kiwi, kolibri, kondori, kookaburra, koskelo, kuukkeli, lunni, moa, pelikaani, pitohui, pulu, ruokki, siira, strutsi, suula, tavi, tukaani, undulaatti'.split(', ')
+MAARI_C = 'akaatti, akvamariini, ametisti, baryytti, berylli, fluoriitti, granaatti, hypersteeni, jade, jaspis, karneoli, korundi, kuukivi, malakiitti, meripihka, opaali, peridootti, rubiini, safiiri, sitriini, smaragdi, spektroliitti, spinelli, timantti, topaasi, turkoosi, turmaliini, vuorikide, zirkoni'.split(', ')
+
+HOSTS = set()
+
+for host in MAARI_A + MAARI_C:
+    HOSTS.add(host + '.aalto.fi')
+    HOSTS.add(host + '.org.aalto.fi')
+
+URL_BASE = 'http://ppc.cs.aalto.fi/2018/'
+
+# Task setup
+
+REPORT = 'report.pdf'
+
+class default:
+    MAX = [5,3]
+
+    # Before each test iteration, a command list from here is run
+    TEST_DEBUG_COMMAND_LISTS_CPU = [
+        [['make', 'clean'], ['make', '-j', 'DEBUG=2']],
+        [['make', 'clean'], ['make', '-j']],
+    ]
+
+    TEST_DEBUG_COMMAND_LISTS_GPU = [
+        [['make', 'clean'], ['make', '-j']],
+    ]
+
+CPU_BASELINE = 'Implement a simple *sequential* baseline solution. Make sure it works correctly. Do not use any form of parallelism yet.'
+CPU_FAST = 'Using all resources that you have in the CPU, solve the task *as fast as possible*. You are encouraged to exploit instruction-level parallelism, multithreading, and vector instructions whenever possible, and also to optimize the memory access pattern.'
+GPU_BASELINE = 'Implement a simple baseline solution for the *GPU*. Make sure it works correctly and that it is reasonably efficient. Make sure that all performance-critical parts are executed on the GPU; you can do some lightweight preprocessing and postprocessing also on the CPU.'
+GPU_FAST = 'Using all resources that you have in the *GPU*, solve the task *as fast as possible*.'
+DOUBLE = 'Please do all arithmetic with *double-precision* floating point numbers.'
+SINGLE = 'In this task, you are permitted to use *single-precision* floating point numbers.'
+SOURCE_AND_REPORT = 'Your submission has to contain the source code of your implementation and a written report.'
+AT_LEAST_REPORT = 'Your submission has to contain at least a written report.'
+
+TASKS = [
+    {
+        'id': 'cp1',
+        'title': 'CPU baseline',
+        'descr': [
+            CPU_BASELINE,
+            DOUBLE,
+        ],
+        'benchmark': ['./cp-benchmark', '4000', '1000'],
+        'benchmarktest': ['./cp-test', '4000', '1000', '2'],
+        'columns': [3, 4],
+        'time': [10, 12, 15, 20, inf],
+        'week': 1,
+    },
+    {
+        'id': 'cp2a',
+        'title': 'instruction-level parallelism',
+        'descr': [
+            'Parallelize your solution to CP1 by exploiting *instruction-level parallelism*. Make sure that the performance-critical operations are pipelined efficiently. Do not use any other form of parallelism yet in this exercise.',
+            DOUBLE,
+        ],
+        'benchmark': ['./cp-benchmark', '4000', '1000'],
+        'benchmarktest': ['./cp-test', '4000', '1000', '2'],
+        'columns': [3, 4],
+        'time': [5.5, 6.5, 8.0],
+        'week': 2,
+        'max': [3,2],
+    },
+    {
+        'id': 'cp2b',
+        'title': 'multicore parallelism',
+        'descr': [
+            'Parallelize your solution to CP1 with the help of *OpenMP* and multithreading so that you are exploiting multiple CPU cores in parallel. Do not use any other form of parallelism yet in this exercise.',
+            DOUBLE,
+        ],
+        'benchmark': ['./cp-benchmark', '4000', '1000'],
+        'benchmarktest': ['./cp-test', '4000', '1000', '2'],
+        'columns': [3, 4],
+        'time': [1.5, 2.5, 8.0],
+        'week': 2,
+        'max': [3,2],
+    },
+    {
+        'id': 'cp2c',
+        'title': 'vectorization',
+        'descr': [
+            'Parallelize your solution to CP1 with the help of *vector operations* so that you can perform multiple useful arithmetic operations with one instruction.',
+            'Do not use any other form of parallelism yet in this exercise.',
+            DOUBLE,
+        ],
+        'benchmark': ['./cp-benchmark', '4000', '1000'],
+        'benchmarktest': ['./cp-test', '4000', '1000', '2'],
+        'columns': [3, 4],
+        'time': [3.5, 5.0, 8.0],
+        'week': 2,
+        'max': [3,2],
+    },
+    {
+        'id': 'cp3a',
+        'title': 'fast solution with doubles',
+        'descr': [
+            CPU_FAST,
+            DOUBLE,
+        ],
+        'benchmark': ['./cp-benchmark', '6000', '6000'],
+        'benchmarktest': ['./cp-test', '6000', '6000', '2'],
+        'columns': [3, 4],
+        'time': [2.0, 3.0, 4.0, 6.0, 9.0],
+        'week': 3,
+        'contest': True,
+    },
+    {
+        'id': 'cp3b',
+        'title': 'fast solution with floats',
+        'descr': [
+            CPU_FAST,
+            SINGLE,
+        ],
+        'benchmark': ['./cp-benchmark', '6000', '6000'],
+        'benchmarktest': ['./cp-test', '6000', '6000', '2'],
+        'columns': [3, 4],
+        'time': [1.0, 1.5, 2.0, 3.0, 4.5],
+        'week': 3,
+        'contest': True,
+    },
+    {
+        'id': 'cp4',
+        'title': 'GPU baseline',
+        'descr': [
+            GPU_BASELINE,
+            SINGLE,
+        ],
+        'gpu': True,
+        'benchmark': ['./cp-benchmark', '1500', '1500', '2'],
+        'benchmarktest': ['./cp-test', '1500', '1500', '2'],
+        'columns': [3, 4],
+        'rows': [1, 2],
+        'time': [0.7, 1.0, 2, 5, inf],
+        'week': 4,
+    },
+    {
+        'id': 'cp5',
+        'title': 'fast GPU solution',
+        'descr': [
+            GPU_FAST,
+            SINGLE,
+        ],
+        'gpu': True,
+        'benchmark': ['./cp-benchmark', '6000', '6000', '2'],
+        'benchmarktest': ['./cp-test', '6000', '6000', '2'],
+        'columns': [3, 4],
+        'rows': [1, 2],
+        'time': [0.5, 0.75, 1.0, 1.5, 3, 6, 10, 15, 20, inf],
+        'week': 5,
+        'max': [10,6],
+        'contest': True,
+    },
+    {
+        'id': 'cp9a',
+        'title': 'better algorithm',
+        'descr': [
+            "Try to use *Strassen's algorithm* to speed up matrix multiplications. Can you improve on your solution to CP3a or CP3b this way?",
+            SOURCE_AND_REPORT,
+        ],
+        'report': True,
+    },
+    {
+        'id': 'cp9b',
+        'title': 'performance analysis',
+        'descr': [
+            'How close are your solutions to CP3a and CP3b to the *theoretical* and *practical* capabilities of the CPU? How many floating point operations do you do in your code in total? How many floating point operations does your code do per clock cycle and per CPU core? Could it possibly do any better than that?',
+            'Write *benchmark code* that achieves as many floating point operations per cycle as possible with the CPU that we use. Your program does not need to do anything useful. Make sure that you use vector instructions, you do not have any memory accesses that might be a bottleneck, and there are enough opportunities for instruction-level parallelism.',
+            'Read the *specifications* of the CPU: how many floating point operations is it supposed to be capable of doing per clock cycle and per CPU core, under optimal conditions? Does your benchmark code agree with this?',
+            'Alternatively, you can also choose to do a similar analysis of your solution to CP5, in comparison with the theoretical and practical capabilities of the GPU.',
+            AT_LEAST_REPORT,
+        ],
+        'report': True,
+    },
+    {
+        'id': 'cp9c',
+        'title': 'application',
+        'descr': [
+            'The details of this task will be published later on the course web page.',
+        ],
+        'report': True,
+    },
+    {
+        'id': 'is4',
+        'title': 'fast CPU solution',
+        'descr': [
+            CPU_FAST,
+            'You are expected to use an algorithm that tries out *all possible locations* 0 ≤ y0 < y1 ≤ ny and 0 ≤ x0 < x1 ≤ nx for the rectangle and finds the best one. However, for each candidate location you should only perform O(1) operations to evaluate how good this position is. To achieve this, some preprocessing will be needed.',
+            DOUBLE,
+        ],
+        'benchmark': ['./is-benchmark', '400', '400'],
+        'benchmarktest': ['./is-test', 'benchmarktest', '400', '400'],
+        'columns': [3, 4],
+        'time': [4.0, 5.0, 8.0, 15.0, inf],
+        'week': 4,
+        'contest': True,
+    },
+    {
+        'id': 'is6a',
+        'title': 'fast CPU solution for 1-bit images',
+        'descr': [
+            'In this task, the input is always a monochromatic image: each input pixel is either entirely *white* with RGB values (1,1,1) or entirely *black* with RGB values (0,0,0). Make your solution to IS4 faster by exploiting this property. It is now enough to find a solution for only one color channel, and you will also have much less trouble with rounding errors.',
+            SINGLE,
+        ],
+        'benchmark': ['./is-benchmark', 'binary', '400', '400'],
+        'benchmarktest': ['./is-test', 'binary', 'benchmarktest', '400', '400'],
+        'columns': [3, 4],
+        'time': [0.5, 1.0, 1.5, 2.5, 3.5],
+        'week': 6,
+        'contest': True,
+    },
+    {
+        'id': 'is6b',
+        'title': 'fast GPU solution for 1-bit images',
+        'descr': [
+            'Port your solution to IS6a to the *GPU*; again, make it run *as fast as possible*.',
+        ],
+        'gpu': True,
+        'benchmark': ['./is-benchmark', 'binary', '400', '400', '2'],
+        'benchmarktest': ['./is-test', 'binary', 'benchmarktest', '400', '400'],
+        'columns': [3, 4],
+        'time': [1.5, 3.0, 6.0, 12.0, inf],
+        'week': 6,
+        'contest': True,
+    },
+    {
+        'id': 'is9a',
+        'title': 'better algorithm',
+        'descr': [
+            'Design a more efficient algorithm that (at least in typical cases) does not need to try out all possible locations of the rectangle. Implement the algorithm efficiently on the CPU.',
+        ],
+        'benchmark': ['./pngsegment', 'sign.png', '/dev/null', '/dev/null'],
+        'benchmarktest': ['./is-test', 'benchmarktest', '400', '400'],
+        'columns': [3, 4],
+        'time': [0.1, 1.0, 10.0, 100.0, inf],
+        'week': 6,
+    },
+    {
+        'id': 'mf1',
+        'title': 'CPU baseline',
+        'descr': [
+            CPU_BASELINE,
+            'You are expected to use a naive algorithm that computes the median separately for each pixel, with a *linear-time median-finding algorithm*.',
+        ],
+        'benchmark': ['./mf-benchmark', '1000', '1000', '10', '10'],
+        'benchmarktest': ['./mf-test', '1000', '1000', '10', '10'],
+        'columns': [3, 4],
+        'time': [4.5, 5.5, 6.5, 8, inf],
+        'week': 1,
+    },
+    {
+        'id': 'mf2',
+        'title': 'multicore parallelism',
+        'descr': [
+            'Parallelize your solution to CP1 with the help of *OpenMP* and multithreading so that you are exploiting multiple CPU cores in parallel.',
+        ],
+        'benchmark': ['./mf-benchmark', '1000', '1000', '10', '10'],
+        'benchmarktest': ['./mf-test', '1000', '1000', '10', '10'],
+        'columns': [3, 4],
+        'time': [1, 1.5, 2.5],
+        'week': 2,
+        'max': [3,2],
+    },
+    {
+        'id': 'mf9a',
+        'title': 'better algorithm',
+        'descr': [
+            'Design a *better algorithm* that does not recalculate the median separately for each pixel. Make it as efficient as possible, also for very large window sizes. You are encouraged to use all resources that you have in the CPU.',
+        ],
+        'benchmark': ['./mf-benchmark', '4000', '4000', '50', '50'],
+        'benchmarktest': ['./mf-test', '4000', '4000', '50', '50'],
+        'columns': [3, 4],
+        'time': [3, 6, 16, 40, inf],
+        'week': 6,
+    },
+    {
+        'id': 'nn9a',
+        'title': 'fast CPU solution',
+        'descr': [
+            CPU_FAST,
+        ],
+        'benchmark': ['./nn-benchmark'],
+        'columns': [3, 4],
+        'time': [2.0, 3.2, 5.0, 8.0, 12.6],
+        'timelimit': 90.0,
+        'week': 6,
+    },
+    {
+        'id': 'nn9b',
+        'title': 'fast GPU solution',
+        'descr': [
+            GPU_FAST,
+        ],
+        'gpu': True,
+        'benchmark': ['./nn-benchmark'],
+        'columns': [3, 4],
+        'time': [2.0, 3.2, 5.0, 8.0, 12.6],
+        'timelimit': 90.0,
+        'week': 6,
+    },
+    {
+        'id': 'so4',
+        'title': 'merge sort',
+        'descr': [
+            'Implement an efficient parallel sorting algorithm for the CPU, using the basic idea of *merge sort*.',
+        ],
+        'benchmark': ['./so-benchmark', '100000000'],
+        'benchmarktest': ['./so-test', '100000000'],
+        'columns': [3, 4],
+        'time': [2.2, 2.5, 3.0, 3.5, inf],
+        'week': 4,
+        'contest': True,
+    },
+    {
+        'id': 'so5',
+        'title': 'quicksort',
+        'descr': [
+            'Implement an efficient parallel sorting algorithm for the CPU, using the basic idea of *quicksort*.',
+        ],
+        'benchmark': ['./so-benchmark', '100000000'],
+        'benchmarktest': ['./so-test', '100000000'],
+        'columns': [3, 4],
+        'time': [2.2, 2.5, 3.0, 3.5, inf],
+        'week': 5,
+        'contest': True,
+    },
+    {
+        'id': 'so6',
+        'title': 'fast GPU solution',
+        'descr': [
+            'Implement an efficient parallel sorting algorithm for the *GPU*. Any sorting algorithm is fine, but *radix sort* is perhaps the simplest choice.',
+        ],
+        'gpu': True,
+        'benchmark': ['./so-benchmark', '100000000', '0', '2'],
+        'benchmarktest': ['./so-test', '100000000'],
+        'columns': [3, 4],
+        'time': [2, 5, 10, 20, 50],
+        'week': 6,
+        'contest': True,
+    },
+]
+
+# Generic
+
+class col:
+    reset = '\033[0m'
+    error = '\033[31;1m'
+    good = '\033[34;1m'
+    task = '\033[35;1m'
+    bold = '\033[1m'
+    cmd = '\033[34m'
+
+def warning(s):
+    print('\n' + col.error + s + col.reset + '\n')
+
+def error(s):
+    sys.exit('\n' + col.error + s + col.reset + '\n')
+
+def pcmd(c, indent=0):
+    print(" " * indent + col.cmd + " ".join(c) + col.reset)
+
+def ptask(task):
+    print()
+    print(col.task + "TASK {}: {}".format(task.id.upper(), task.title) + col.reset)
+    print(col.cmd + task.url + col.reset)
+    print()
+
+def plural(x,l):
+    if x == 1:
+        return "{} {}".format(x,l)
+    else:
+        return "{} {}s".format(x,l)
+
+def weeks(x):
+    return plural(x, "week")
+
+def week_range(x,y):
+    if x == y:
+        return "week {}".format(x)
+    else:
+        return "weeks {}-{}".format(x,y)
+
+def print_run(c, output=False, timelimit=inf):
+    print()
+    pcmd(c)
+    try:
+        if output:
+            return subprocess.check_output(c, timeout=min(timelimit, 600)).decode('utf-8')
+        else:
+            subprocess.check_call(c, timeout=timelimit)
+    except subprocess.TimeoutExpired:
+        error("Command {} took too long".format(" ".join(c)))
+    except:
+        error("Command '{}' failed".format(" ".join(c)))
+
+def read_benchmarkfile():
+    with open("benchmark.run", "r") as benchmarksfile:
+        ret = [float(x) for x in benchmarksfile.read().split('\n') if len(x) > 0]
+    return ret
+
+# Runs command and retuns the results of "benchmarks.run" file as array of float
+def run_timed(c, timelimit=inf):
+    print()
+    pcmd(c)
+    ppc_env = os.environ
+    ppc_env["PPC_BENCHMARK"] = "1"
+    try:
+        subprocess.check_call(c, timeout=timelimit, env=ppc_env)
+        ret = read_benchmarkfile();
+    except subprocess.TimeoutExpired:
+        error("Command {} took too long".format(" ".join(c)))
+    except:
+        error("Command '{}' failed".format(" ".join(c)))
+    finally:
+        if os.path.exists("benchmark.run"):
+            os.remove("benchmark.run")
+    return ret
+
+
+
+def dnone(x, s=""):
+    return s if x is None else "{:d}".format(x)
+
+
+
+class Result:
+    def __init__(self, task, i):
+        self.index = i
+        self.week = i + 1
+        self.task = task
+        sfile = 'submission-{}.txt'.format(self.week)
+        ffile = 'feedback-{}.txt'.format(self.week)
+        self.sfile_short = os.path.join(task.id, sfile)
+        self.ffile_short = os.path.join(task.id, ffile)
+        self.sfile = os.path.join(task.path, sfile)
+        self.ffile = os.path.join(task.path, ffile)
+        self.submission = None
+        self.feedback = None
+        self.max = task.get_max(self.week)
+        try:
+            with open(self.sfile) as f:
+                self.submission = float(f.readline().rstrip())
+            with open(self.ffile) as f:
+                self.feedback = int(f.readline().rstrip())
+        except IOError:
+            pass
+        self.automatic = None
+        self.final = None
+        if self.submission is not None:
+            self.automatic = task.score(self.week, self.submission)
+        if self.automatic is not None and self.feedback is not None:
+            self.final = self.automatic + self.feedback
+
+
+class Task:
+    def __init__(self, grading, t):
+        self.grading = grading
+        self.id = t['id']
+        self.report = t.get('report', False)
+        self.title = t['title']
+        self.descr = t['descr']
+        self.contest = t.get('contest', False)
+        if not self.report:
+            self.gpu = t.get('gpu', False)
+            self.benchmark = t['benchmark']
+            self.benchmarktest = t.get('benchmarktest', None)
+            self.time = t['time']
+            self.tcol, self.columns = t['columns']
+            self.trow, self.rows = t.get('rows', [0,1])
+            self.timelimit = t.get('timelimit', self.time[-1] * 2.5)
+            assert 0 <= self.tcol < self.columns
+            assert 0 <= self.trow < self.rows
+        self.max = t.get('max', default.MAX)
+        assert len(self.max) == 2
+        self.range = max(self.max)
+        self.week = t.get('week', WEEKS)
+        if self.week == WEEKS:
+            self.max = self.max[:1]
+        assert len(self.id) <= 4
+        self.family = self.id[0:2]
+        self.url = URL_BASE + self.family + "/"
+        self.path = os.path.join(grading.root, self.id)
+
+        if self.report:
+            self.filename = os.path.join(self.path, REPORT)
+
+        self.week_ranges = []
+        for j,m in enumerate(self.max):
+            if j == 0:
+                w1 = 1
+                w2 = self.week
+            else:
+                w1 = self.week + 1
+                w2 = WEEKS
+            self.week_ranges.append([w1, w2])
+        self.point_table = [] # array of type: [points, [limit, limit (late)]]
+
+        if self.report: # for reports any time is ok
+            self.point_table = [[self.range-x, [inf]] for x in range(self.max[0])]
+        else:
+            for point_i in range(self.range):
+                points = self.range-point_i;
+                row = [] # row to append to point table
+                # process on-time case
+                row.append(self.time[point_i])
+                # late case
+                if self.week != WEEKS:
+                    late_point_i = self.max[-1] - points
+                    if late_point_i < 0:
+                        row.append(None)
+                    elif late_point_i < len(self.time):
+                        row.append(self.time[late_point_i])
+                    else:
+                        row.append(self.time[-1])
+                self.point_table.append([points, row]);
+
+    def export(self):
+        r = {
+            'id': self.id,
+            'family': self.family,
+            'report': self.report,
+            'max': self.max,
+            'range': self.range,
+            'week': self.week,
+            'url': self.url,
+            'title': self.title,
+            'descr': self.descr,
+        }
+        if not self.report:
+            r['gpu'] = self.gpu
+            r['contest'] = self.contest
+            r['time'] = self.time
+        return r
+
+    def get_results(self):
+        self.results = [Result(self, i) for i in range(WEEKS)]
+
+    def get_max(self, week):
+        if week <= self.week:
+            return self.max[0]
+        else:
+            return self.max[1]
+
+    def score(self, week, time):
+        if self.report:
+            assert time == 0
+            return 0
+        assert time > 0
+        col = 0 if week <= self.week else 1
+        for p, row in self.point_table:
+            t = row[col]
+            if t is not None and time < t:
+                return p
+        return 0
+
+
+    # Run tests for a task
+    def test(self):
+        if self.family == "cp":
+            print_run(['./cp-test'])
+        elif self.family == "mf":
+            print_run(['./mf-test'])
+        elif self.family == "is":
+            if self.id == "is6a" or self.id == "is6b":
+                print_run(['./is-test', 'binary'])
+            else:
+                print_run(['./is-test'])
+        elif self.family == "so":
+            print_run(['./so-test'])
+        elif self.family == "nn":
+            print_run(['./nn-test'])
+        else:
+            error("Tests for task not found")
+        print(col.good + "Test OK" + col.reset)
+
+
+
+    # Run tests with all debug combinations
+    def test_with_debug(self):
+        command_list_array = default.TEST_DEBUG_COMMAND_LISTS_GPU if self.gpu else default.TEST_DEBUG_COMMAND_LISTS_CPU
+        for command_list in command_list_array:
+            for command in command_list:
+                print_run(command)
+            self.test()
+
+    def run_benchmarktest(self):
+        if self.benchmarktest != None:
+            print("\nRunning test with benchmark size:")
+            print_run(self.benchmarktest)
+            print(col.good + "Test OK" + col.reset)
+
+
+
+class Grading:
+    def __init__(self):
+        # Directories
+        try:
+            self.root = subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode('utf-8').rstrip('\n')
+        except:
+            error("Sorry, I could not find the root directory of the Git repository")
+
+        # Tasks
+        self.all_tasks = [t['id'] for t in TASKS]
+        self.task_map = {t['id']: Task(self, t) for t in TASKS}
+        assert len(self.all_tasks) == len(self.task_map)
+        current = os.path.basename(os.getcwd())
+        if current in self.task_map:
+            self.current_task = current
+        else:
+            self.current_task = None
+
+        # Computers
+        try:
+            self.host = subprocess.check_output(['hostname', '-f']).decode('utf-8').rstrip('\n')
+        except:
+            error("Sorry, I could not figure out the hostname of this computer")
+        self.system = platform.system()
+        self.valid_host = self.host in HOSTS and self.system == 'Linux'
+        if 'PPC_FORCE' in os.environ:
+            self.valid_host = True
+
+        # Date
+        override = os.environ.get('PPC_DATE')
+        if override is not None:
+            date = datetime.datetime.strptime(override, "%Y-%m-%d")
+        else:
+            date = datetime.date.today()
+        year, week, day = date.isocalendar()
+        year0, week0 = WEEK0
+        self.outside = 0
+        self.week = None
+        if year < year0:
+            self.outside = -1
+            self.week_label = 'wrong year'
+        elif year > year0:
+            self.outside = +1
+            self.week_label = 'wrong year'
+        else:
+            offset = week - week0
+            if offset <= 0:
+                self.outside = -1
+                self.week_label = '{} before the course starts'.format(weeks(1 - offset))
+            elif offset > WEEKS:
+                self.outside = +1
+                self.week_label = '{} after the course ends'.format(weeks(offset - WEEKS))
+            else:
+                self.week = offset
+                self.week_label = 'week {} of the course'.format(offset)
+
+    def task_table(self, task, time=None):
+        cell = "{:18s}"
+        print("         ", end=' ')
+        for x,y in task.week_ranges:
+            print(cell.format(week_range(x,y)), end=' ')
+        print()
+        print()
+        for p, row in task.point_table:
+            print("  {:2d} pt: ".format(p), end=' ')
+            for t in row:
+                if t is None:
+                    v = "-"
+                elif t == inf:
+                    if task.report:
+                        v = "+"
+                    else:
+                        v = "any time"
+                else:
+                    v = "time < {:.1f}".format(t)
+                if t is not None and time is not None:
+                    if time < t:
+                        print(col.good + cell.format(v) + col.reset, end=' ')
+                    else:
+                        print(col.error + cell.format(v) + col.reset, end=' ')
+                else:
+                    print(cell.format(v), end=' ')
+            print()
+        print()
+
+    def task_table_compact(self, task):
+        for i,m in enumerate(task.max):
+            x,y = task.week_ranges[i]
+            print("  {}:  {}-{} pt".format(week_range(x,y), 0, m))
+        print()
+
+    def info(self, tasks):
+        for taskid in tasks:
+            task = self.task_map[taskid]
+            ptask(task)
+            for descr in task.descr:
+                print(textwrap.fill(descr.replace("*", "").replace("_", "")))
+                print()
+
+            if task.report:
+                print("This is an open-ended task.")
+                print("I will just check that the following file exists:")
+                print()
+                pcmd([task.filename], 2)
+                print()
+                print("The grading scale is:")
+                print()
+                self.task_table_compact(task)
+            else:
+                print("For grading, I will use the following command:")
+                print()
+                pcmd(task.benchmark, 2)
+                print()
+                print("It should print {} with {}".format(
+                    plural(task.rows, 'row'),
+                    plural(task.columns, 'column'),
+                ))
+                print("The relevant part is at row {}, column {}.".format(
+                    task.trow + 1,
+                    task.tcol + 1,
+                ))
+                print("The grading thresholds are:")
+                print()
+                self.task_table(task)
+
+    def overview(self, tasks):
+        print()
+        print("Maximum score for each task and each week:")
+        print()
+        print(col.bold + "week:      ", end=' ')
+        for w in range(1, WEEKS+1):
+            print("{:2d}".format(w), end=' ')
+        print(col.reset)
+        print("           ", end=' ')
+        for w in range(1, WEEKS+1):
+            m = ""
+            if self.week is not None and self.week == w:
+                m = "*"
+            print("{:>2s}".format(m), end=' ')
+        print()
+        family = None
+        for taskid in tasks:
+            task = self.task_map[taskid]
+            if task.family != family:
+                if family is not None:
+                    print()
+                family = task.family
+            print(col.bold + "{:5s} ".format(taskid + ":") + col.reset, end=' ')
+            if task.report:
+                special = ''
+            elif task.gpu:
+                special = 'gpu'
+            else:
+                special = 'cpu'
+            print('{:4s}'.format(special), end=' ')
+            for w in range(1, WEEKS+1):
+                x = task.get_max(w)
+                v = "{:2d}".format(x)
+                if x < task.range:
+                    print(v, end=' ')
+                else:
+                    print(col.good + v + col.reset, end=' ')
+            print()
+        print()
+
+    def export(self, tasks):
+        r = { taskid: self.task_map[taskid].export() for taskid in tasks }
+        json.dump(r, sys.stdout, indent=1, sort_keys=True)
+        sys.stdout.write('\n')
+
+    def save(self, task, time):
+        w = self.week
+        assert w is not None
+        task.get_results()
+        r = task.results[w-1]
+        if task.report:
+            assert time == 0
+            if r.submission is not None:
+                assert r.submission == 0
+                print("You have apparently already submitted this task, skipping.")
+                print()
+                return
+        else:
+            assert time > 0
+            if r.submission is not None and r.submission <= time:
+                assert r.submission > 0
+                print("You have already submitted this task with a better running time: {}".format(r.submission))
+                print("Delete {} if you really want to overwrite it.".format(r.sfile_short))
+                print()
+                return
+        try:
+            with open(r.sfile, 'w') as f:
+                f.write('{}\n'.format(time))
+        except:
+            sys.exit("Could not create {}".format(r.sfile_short))
+        print("Your submission is now stored in the following file:")
+        print()
+        pcmd([r.sfile], 2)
+        print()
+        print("Just add, commit, and push it.")
+        print()
+
+    def show(self, tasks):
+        print()
+        print("? = tasks waiting for grading")
+        print()
+        print(col.bold + "Task   Week   Time   Points + Feedback = Total   Max" + col.reset)
+        print()
+        total = 0
+        maxtotal = 0
+        for taskid in tasks:
+            task = self.task_map[taskid]
+            task.get_results()
+            idprint = task.id
+            best = 0
+            best_time = inf
+            for r in task.results:
+                if r.submission is not None:
+                    print("{t}{:<4s}{n}   {:<4d} {:>6}    {:>4}  +  {:<4}    = {b}{:<5}{n}   {}".format(
+                        idprint,
+                        r.week,
+                        "-" if task.report else "{:.1f}".format(r.submission),
+                        r.automatic,
+                        dnone(r.feedback, "?"),
+                        dnone(r.final, "?"),
+                        r.max,
+                        b=col.bold,
+                        t=col.task,
+                        n=col.reset,
+                    ))
+                    if r.final is not None:
+                        best = max(best, r.final)
+                    best_time = min(best_time, r.submission)
+                    idprint = ""
+            tprint = ""
+            if not task.report and best_time < inf:
+                tprint = "{:.1f}".format(best_time)
+            print("{t}{:<4s}{n}   best {:>6}                       {b}{:<5}{n}   {}".format(
+                idprint,
+                tprint,
+                best,
+                task.range,
+                b=col.bold,
+                t=col.task,
+                n=col.reset,
+            ))
+            print()
+            total += best
+            maxtotal += task.range
+        print("{b}total                                    {:<5}   {}{n}".format(
+            total, maxtotal,
+            b=col.bold,
+            t=col.task,
+            n=col.reset,
+        ))
+        print()
+
+
+    def export_score(self, tasks):
+        result = {}
+        for taskid in tasks:
+            task = self.task_map[taskid]
+            task.get_results()
+            for r in task.results:
+                if r.submission is not None:
+                    if task.id not in result:
+                        result[task.id] = {}
+                    result[task.id][r.week] = {
+                        'submission': r.submission,
+                        'automatic': r.automatic,
+                        'feedback': r.feedback,
+                        'final': r.final,
+                    }
+        json.dump(result, sys.stdout, indent=1, sort_keys=True)
+        sys.stdout.write('\n')
+
+    def submit(self, tasks):
+        if self.outside:
+            error("The course is not currently open")
+        for taskid in tasks:
+            task = self.task_map[taskid]
+            ptask(task)
+            if not task.report:
+                print("Normal task, skipping (try 'do').")
+                print()
+                continue
+            print("Checking that the following file exists:")
+            print()
+            pcmd([task.filename], 2)
+            if not os.path.exists(task.filename):
+                error("Could not find {}".format(task.filename))
+            print()
+            print("Looks good.")
+            print()
+            self.save(task, 0)
+
+    def do(self, tasks, dryrun=False, skiptest=False):
+        if self.outside:
+            if not dryrun:
+                error("The course is not currently open; try 'dryrun'")
+        if not self.valid_host:
+            if not dryrun:
+                error("This does not seem to be a valid classroom computer; try 'dryrun'")
+            else:
+                warning("This does not seem to be a valid classroom computer, but proceeding anyway...")
+        loads = os.getloadavg()
+        high_load = loads[0] > 1
+        print()
+        print("Load average for 1 min: {b}{:.2f}{n},  5 min: {b}{:.2f}{n},  15 min: {b}{:.2f}{n}".format(
+            *loads, b=col.bold, n=col.reset
+        ))
+        if high_load:
+            warning("System load is fairly high, careful!")
+        for taskid in tasks:
+            task = self.task_map[taskid]
+            try:
+                ptask(task)
+                if task.report:
+                    print("Open-ended task, skipping (try 'submit').")
+                    continue
+                print("Running tests...")
+                print()
+                pcmd(["cd", task.path])
+                try:
+                    os.chdir(task.path)
+                except:
+                    error("Could not enter directory {}".format(task.path))
+                if not skiptest:
+                    task.test_with_debug()
+                    task.run_benchmarktest()
+
+                output = run_timed(task.benchmark, timelimit=task.timelimit)
+                time = output[-1]
+                print()
+                print("Success! Your running time: {}{}{}".format(col.bold, time, col.reset))
+                print("The grading thresholds are:")
+                print()
+                self.task_table(task, time)
+                if not dryrun:
+                    self.save(task, time)
+
+            except Exception as e:
+                error("{}: {}".format(type(e).__name__, str(e)))
+
+            except KeyboardInterrupt:
+                error("Interrupted")
+
+        if high_load:
+            warning("System load was fairly high when you started grading, careful!")
+
+    def test(self, tasks):
+        for taskid in tasks:
+            task = self.task_map[taskid]
+            pcmd(["cd", task.path])
+            try:
+                os.chdir(task.path)
+            except:
+                error("Could not enter directory {}".format(task.path))
+            task.test()
+            print(col.good + "Tests passed" + col.reset)
+
+    def ui(self):
+        args = sys.argv[1:]
+        if len(args) == 0:
+            self.help()
+            return
+        cmd = args[0]
+        tasks = args[1:]
+        if len(tasks) == 0:
+            if self.current_task is None:
+                error("No task specified")
+            else:
+                tasks = [self.current_task]
+        elif tasks == ['all']:
+            tasks = self.all_tasks
+        elif tasks == ['cpu']:
+            tasks = [t for t in self.all_tasks if not self.task_map[t].report and not self.task_map[t].gpu]
+        elif tasks == ['gpu']:
+            tasks = [t for t in self.all_tasks if not self.task_map[t].report and self.task_map[t].gpu]
+        elif tasks == ['contest']:
+            tasks = [t for t in self.all_tasks if not self.task_map[t].report and self.task_map[t].contest]
+        for t in tasks:
+            if t not in self.task_map:
+                error("Unknown task: {}".format(t))
+        if cmd == 'info':
+            self.info(tasks)
+        elif cmd == 'overview':
+            self.overview(tasks)
+        elif cmd == 'show':
+            self.show(tasks)
+        elif cmd == 'do':
+            self.do(tasks)
+        elif cmd == 'dryrun':
+            self.do(tasks, dryrun=True)
+        elif cmd == 'benchmark':
+            self.do(tasks, dryrun=True, skiptest=True)
+        elif cmd == 'submit':
+            self.submit(tasks)
+        elif cmd == 'export':
+            self.export(tasks)
+        elif cmd == 'export-score':
+            self.export_score(tasks)
+        elif cmd == 'test':
+            self.test(tasks)
+        else:
+            error("Unknown command: {}".format(cmd))
+
+    def help(self):
+        loads = os.getloadavg()
+        print("""
+Usage: grading COMMAND [TASK ...]
+
+    grading overview  - Show a brief overview of the tasks
+    grading info      - Show more information on the tasks
+
+    grading show      - Show my current grades
+
+    grading do        - Do grading
+    grading dryrun    - Do grading but do not record the result
+    grading benchmark - Run benchmark without re-compiling
+    grading test      - Run tests without re-compiling
+    grading submit    - Submit open-ended tasks (no automatic grading)
+
+By default, all commands apply to the task in the current working directory.
+You can override this default by giving the names of the tasks, e.g.:
+
+    grading do mf1 mf2
+
+You can use the keyword "all", "cpu", and "gpu" to apply the command to all
+tasks, all CPU tasks, and all GPU tasks, e.g.:
+
+    grading show all
+    grading do cpu
+    grading overview gpu
+
+Status:
+
+  - root directory of your repository: {root}
+  - computer: {host}, {system} ({valid_host})
+  - load averages: {l1:.2f}, {l5:.2f}, {l15:.2f}
+  - date: {week}
+
+Hint: to read long outputs with colors, try piping to "less -R":
+
+    grading show all | less -R
+""".format(
+            current_task="not specified" if self.current_task is None else self.current_task,
+            all_tasks=" ".join(self.all_tasks),
+            host=self.host,
+            system=self.system,
+            valid_host='valid' if self.valid_host else 'not valid',
+            root=self.root,
+            week=self.week_label,
+            l1=loads[0],
+            l5=loads[1],
+            l15=loads[2],
+        ))
+
+
+Grading().ui()

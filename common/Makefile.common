@@ -1,0 +1,48 @@
+.PHONY: all clean depend test test1 test2 benchmark benchmark1 benchmark2
+.DELETE_ON_ERROR:
+
+# Try to find suitable C++ compiler
+CXX:=$(shell ../util/find-cxx)
+ifeq ($(CXX),)
+$(error could not find a suitable C++ complier)
+endif
+
+# Basic C++ compiler flags
+CXXFLAGS=-g -std=c++1z -Wall -Wextra
+CXXFLAGS+=-Werror -Wno-error=unknown-pragmas -Wno-error=unused-but-set-variable -Wno-error=unused-local-typedefs -Wno-error=unused-function -Wno-error=unused-label -Wno-error=unused-value -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=unused-but-set-parameter
+CXXFLAGS+=-march=native $(shell ../util/find-flags)
+
+# ASAN flags if debug mode, otherwise -O3
+ifeq ($(DEBUG),1)
+else ifeq ($(DEBUG),2)
+CXXFLAGS+=$(shell ../util/find-sanity $(CXX))
+LDFLAGS+=$(shell ../util/find-sanity $(CXX))
+else ifeq ($(DEBUG),3)
+CXXFLAGS+=-D_GLIBCXX_DEBUG
+CXXFLAGS+=$(shell ../util/find-sanity $(CXX))
+LDFLAGS+=$(shell ../util/find-sanity $(CXX))
+else
+CXXFLAGS+=-O3
+endif
+
+SOURCES:=*.cc
+
+all: $(bin)
+
+%.s : %.cc
+	$(CXX) -S -fverbose-asm $(CXXFLAGS) $^
+
+%.asm1 : %.s
+	c++filt < $^ > $@
+
+%.asm2 : %.o
+	../util/objdump-wrapper -d -S $^ > $@
+
+depend:
+	$(CXX) -MM $(CXXFLAGS) -x c++ $(wildcard $(SOURCES)) > Makefile.dep
+
+clean: cleanthis
+	@$(MAKE) -s -C ../common cleanthis
+
+cleanthis:
+	rm -f $(bin) *.o *.s *.asm1 *.asm2

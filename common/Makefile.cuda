@@ -1,0 +1,79 @@
+include ../common/Makefile.common
+SOURCES+=*.cu
+
+################################################################################
+# CUDA location, OS type, underlying compiler, etc.
+
+ifneq "$(wildcard /usr/local/cuda)" ""
+CUDA_PATH?=/usr/local/cuda
+endif
+ifneq "$(wildcard /opt/cuda)" ""
+CUDA_PATH?=/opt/cuda
+endif
+ifneq "$(wildcard /usr/lib/nvidia-cuda-toolkit)" ""
+CUDA_PATH?=/usr/lib/nvidia-cuda-toolkit
+endif
+ifeq ($(CUDA_PATH),)
+$(error could not find CUDA)
+endif
+
+OS_SIZE=$(shell uname -m | sed -e "s/x86_64/64/" -e "s/armv7l/32/" -e "s/aarch64/64/")
+OS_ARCH=$(shell uname -m)
+ARCH_FLAGS=
+
+# Take command line flags that override any of these settings
+ifeq ($(x86_64),1)
+OS_SIZE=64
+OS_ARCH=x86_64
+endif
+
+# Common binaries
+NVCC:=$(CUDA_PATH)/bin/nvcc
+
+# internal flags
+NVCCFLAGS:=-m${OS_SIZE} ${ARCH_FLAGS} --std=c++14 -O3
+
+# Extra user flags
+EXTRA_NVCCFLAGS  ?=
+EXTRA_LDFLAGS    ?=
+
+# Debug build flags
+ifneq ($(DEBUG),)
+NVCCFLAGS+=-g -G
+endif
+
+NVCC_CCFLAGS=-Wall -Wextra --std=c++1z -O3 -march=native
+# Extra flags for guiding GPU code generation
+PTXAS_CCFLAGS=
+
+ALL_CCFLAGS:=
+ALL_CCFLAGS+=$(NVCCFLAGS)
+ALL_CCFLAGS+=$(EXTRA_NVCCFLAGS)
+ALL_CCFLAGS+=$(addprefix -Xcompiler ,$(NVCC_CCFLAGS))
+ALL_CCFLAGS+=$(addprefix -Xptxas ,$(PTXAS_CCFLAGS))
+
+ALL_LDFLAGS:=
+ALL_LDFLAGS+=$(ALL_CCFLAGS)
+ALL_LDFLAGS+=$(addprefix -Xlinker ,$(LDFLAGS))
+ALL_LDFLAGS+=$(addprefix -Xlinker ,$(EXTRA_LDFLAGS))
+
+################################################################################
+# Gencode arguments
+
+SMS?=50
+
+ifeq ($(GENCODE_FLAGS),)
+# Generate SASS code for each SM architecture listed in $(SMS)
+$(foreach sm,$(SMS),$(eval GENCODE_FLAGS+=-gencode arch=compute_$(sm),code=sm_$(sm)))
+
+# Generate PTX code from the highest SM architecture in $(SMS) to guarantee forward-compatibility
+HIGHEST_SM:=$(lastword $(sort $(SMS)))
+ifneq ($(HIGHEST_SM),)
+GENCODE_FLAGS+=-gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM)
+endif
+endif
+
+################################################################################
+# CUDA header files
+
+CXXFLAGS+=-isystem ${CUDA_PATH}/include

@@ -1,0 +1,18 @@
+#!/bin/sh
+
+for a in "g++-7" "g++-6" "g++-5" "g++"; do
+    if "$a" "-dumpversion" > /dev/null 2>&1; then
+        case "$($a -dumpversion)" in
+        [7]*)
+            echo "$a"
+            exit 0
+            ;;
+        [567].*)
+            echo "$a"
+            exit 0
+            ;;
+        esac
+    fi
+done
+echo "could not find a suitable C++ compiler" >&2
+exit 1

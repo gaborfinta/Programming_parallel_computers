@@ -1,0 +1,12 @@
+is.o: is.cc is.h
+is-benchmark.o: ../is-common/is-benchmark.cc ../common/random.h \
+ ../common/error.h ../common/timer.h is.h
+is-test.o: ../is-common/is-test.cc is.h ../common/random.h \
+ ../common/timer.h ../common/image.h ../common/pngio.h ../common/image.h
+pngsegment.o: ../is-common/pngsegment.cc ../common/pngio.h \
+ ../common/image.h ../common/error.h ../common/timer.h is.h
+pngio.o: ../common/pngio.cc ../common/pngio.h ../common/image.h \
+ ../common/error.h
+pngdiff.o: ../common/pngdiff.cc ../common/pngio.h ../common/image.h \
+ ../common/error.h
+error.o: ../common/error.cc ../common/error.h

@@ -1,0 +1,11 @@
+cp.o: cp.cc cp.h
+cp-test.o: ../cp-common/cp-test.cc cp.h ../common/error.h
+pngcorrelate.o: ../cp-common/pngcorrelate.cc ../common/pngio.h \
+ ../common/image.h ../common/error.h ../common/timer.h cp.h
+cp-benchmark.o: ../cp-common/cp-benchmark.cc ../common/error.h \
+ ../common/timer.h cp.h
+pngio.o: ../common/pngio.cc ../common/pngio.h ../common/image.h \
+ ../common/error.h
+pngdiff.o: ../common/pngdiff.cc ../common/pngio.h ../common/image.h \
+ ../common/error.h
+error.o: ../common/error.cc ../common/error.h

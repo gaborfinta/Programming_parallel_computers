@@ -1,0 +1,10 @@
+so.o: so.cu so.h
+so-benchmark.o: ../so-common/so-benchmark.cc ../so-common/so-gen.h so.h \
+ ../common/random.h ../common/error.h ../common/timer.h
+so-test.o: ../so-common/so-test.cc ../so-common/so-gen.h so.h \
+ ../common/error.h ../common/random.h
+pngio.o: ../common/pngio.cc ../common/pngio.h ../common/image.h \
+ ../common/error.h
+pngdiff.o: ../common/pngdiff.cc ../common/pngio.h ../common/image.h \
+ ../common/error.h
+error.o: ../common/error.cc ../common/error.h

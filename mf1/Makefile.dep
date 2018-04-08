@@ -1,0 +1,11 @@
+mf.o: mf.cc mf.h
+mf-benchmark.o: ../mf-common/mf-benchmark.cc ../common/error.h \
+ ../common/timer.h mf.h
+mf-test.o: ../mf-common/mf-test.cc mf.h
+pngmf.o: ../mf-common/pngmf.cc ../common/pngio.h ../common/image.h \
+ ../common/error.h ../common/timer.h mf.h
+pngio.o: ../common/pngio.cc ../common/pngio.h ../common/image.h \
+ ../common/error.h
+pngdiff.o: ../common/pngdiff.cc ../common/pngio.h ../common/image.h \
+ ../common/error.h
+error.o: ../common/error.cc ../common/error.h

@@ -1,0 +1,11 @@
+nn.o: nn.cu nn.h
+nn-main.o: ../nn-common/nn-main.cc ../nn-common/labels.inl nn.h
+nn-benchmark.o: ../nn-common/nn-benchmark.cc ../nn-common/labels.inl \
+ ../common/error.h ../common/timer.h nn.h
+nn-test.o: ../nn-common/nn-test.cc ../nn-common/labels.inl \
+ ../common/error.h ../common/timer.h nn.h
+pngio.o: ../common/pngio.cc ../common/pngio.h ../common/image.h \
+ ../common/error.h
+pngdiff.o: ../common/pngdiff.cc ../common/pngio.h ../common/image.h \
+ ../common/error.h
+error.o: ../common/error.cc ../common/error.h

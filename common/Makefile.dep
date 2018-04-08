@@ -1,0 +1,3 @@
+pngio.o: pngio.cc pngio.h image.h error.h
+pngdiff.o: pngdiff.cc pngio.h image.h error.h
+error.o: error.cc error.h
