@@ -15,12 +15,12 @@ CXXFLAGS+=-march=native $(shell ../util/find-flags)
 # ASAN flags if debug mode, otherwise -O3
 ifeq ($(DEBUG),1)
 else ifeq ($(DEBUG),2)
-CXXFLAGS+=$(shell ../util/find-sanity $(CXX))
-LDFLAGS+=$(shell ../util/find-sanity $(CXX))
+CXXFLAGS+=-fsanitize=address -fsanitize=undefined
+LDFLAGS+=-fsanitize=address -fsanitize=undefined
 else ifeq ($(DEBUG),3)
 CXXFLAGS+=-D_GLIBCXX_DEBUG
-CXXFLAGS+=$(shell ../util/find-sanity $(CXX))
-LDFLAGS+=$(shell ../util/find-sanity $(CXX))
+CXXFLAGS+=-fsanitize=address -fsanitize=undefined
+LDFLAGS+=-fsanitize=address -fsanitize=undefined
 else
 CXXFLAGS+=-O3
 endif

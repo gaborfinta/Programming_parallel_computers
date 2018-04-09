@@ -1,6 +1,12 @@
 include ../common/Makefile.common
 SOURCES+=*.cu
 
+ifeq ($(DEBUG),2)
+$(error DEBUG=2 not supported with CUDA)
+else ifeq ($(DEBUG),3)
+$(error DEBUG=3 not supported with CUDA)
+endif
+
 ################################################################################
 # CUDA location, OS type, underlying compiler, etc.
 
