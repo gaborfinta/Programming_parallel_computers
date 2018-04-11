@@ -271,7 +271,7 @@ TASKS = [
         'id': 'mf2',
         'title': 'multicore parallelism',
         'descr': [
-            'Parallelize your solution to CP1 with the help of *OpenMP* and multithreading so that you are exploiting multiple CPU cores in parallel.',
+            'Parallelize your solution to MF1 with the help of *OpenMP* and multithreading so that you are exploiting multiple CPU cores in parallel.',
         ],
         'benchmark': ['./mf-benchmark', '1000', '1000', '10', '10'],
         'benchmarktest': ['./mf-test', '1000', '1000', '10', '10'],
