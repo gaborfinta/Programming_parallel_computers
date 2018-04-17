@@ -45,9 +45,10 @@ float median(int ny, int nx, int y, int x, int hy, int hx, const float* in)
 
 void mf(int ny, int nx, int hy, int hx, const float* in, float* out)
 {
-    #pragma omp parallel for
+    
     for(int y = 0; y < ny; ++y)
     {
+	#pragma omp parallel for
 	for(int x = 0; x < nx; ++x)
 	{
 	    out[x + y * nx] = median(ny, nx, y, x, hy, hx, in);
