@@ -1,0 +1,7 @@
+0
+
+Hint: make sure all threads are doing roughly the same amount of work; look at the "schedule" directive.
+
+--
+Grading by:
+jukka
