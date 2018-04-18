@@ -1,0 +1,7 @@
+0
+
+Using a std::vector<double> for the 4 sums is a rather heavyweight solution; you should get a much better performance by using local variables that can be kept in registers.
+
+--
+Grading by:
+jukka
