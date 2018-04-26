@@ -1,0 +1,7 @@
+0
+
+Why not simply e.g. "double sums[nPad]" instead of "double* sums = (double*)malloc(sizeof(double) * nPad)"? No need for dynamic memory management here.
+
+--
+Grading by:
+jukka
