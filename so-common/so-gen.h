@@ -50,7 +50,7 @@ static void generate(iter begin, iter end, rng_type& rng, gen_type type)
         break;
     case gen_type::decr:
         for (auto it = begin; it != end; ++it) {
-            *it = MAGIC + n - i--;
+            *it = MAGIC + n - i++;
         }
         break;
     default:
