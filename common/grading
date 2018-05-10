@@ -159,6 +159,7 @@ TASKS = [
         'descr': [
             GPU_FAST,
             SINGLE,
+            '(Note: deadline extended due to the IT problems during week 5; you can solve this task during week 6 and get full points.)'
         ],
         'gpu': True,
         'benchmark': ['./cp-benchmark', '6000', '6000', '2'],
@@ -167,7 +168,7 @@ TASKS = [
         'rows': [1, 2],
         'time': [0.5, 0.75, 1.0, 1.5, 3, 6, 10, 15, 20, inf],
         'week': 5,
-        'max': [10,6],
+        'max': [10,10],
         'contest': True,
     },
     {
