@@ -195,7 +195,11 @@ TASKS = [
         'id': 'cp9c',
         'title': 'application',
         'descr': [
-            'The details of this task will be published later on the course web page.',
+            'Develop an application for aligning two images.',
+            'Your program reads two images, A and B, and finds the best way to align them both horizontally and vertically. The program should create multiple versions of *image A* with different *horizontal* translations, and multiple versions of *image B* with different *vertical* translations, calculate all pairwise correlations between them, and select the best fit.',
+            'Handling horizontal and vertical translation is sufficient; you do not need to handle rotation or scaling. You can use common/pngio.cc in your Git repository for reading PNG files. You can use e.g. your CP3b or CP5 as a subroutine to calculate pairwise correlations, or you can develop an algorithm specifically for this task.',
+            'Your report should demonstrate how your program works with real-life images (e.g., snap two photos with your mobile phone of the same scene, handheld). You are free to choose reasonable image sizes and how large translations are supported.',
+            SOURCE_AND_REPORT,
         ],
         'report': True,
     },
