@@ -479,7 +479,9 @@ int main(int argc, char** argv) {
     }
     else {
         test(rng, ny, nx, is_binary);
-        test_gradient(rng, ny, nx);
+        if (!is_binary) {
+            test_gradient(rng, ny, nx);
+        }
         return 0;
     }
 
